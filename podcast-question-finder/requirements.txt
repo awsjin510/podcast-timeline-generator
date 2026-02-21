@@ -1,0 +1,7 @@
+streamlit>=1.30.0
+openai-whisper>=20231117
+anthropic>=0.40.0
+pydub>=0.25.1
+ffmpeg-python>=0.2.0
+python-dotenv>=1.0.0
+pandas
