@@ -26,8 +26,17 @@ st.set_page_config(
 )
 
 if shutil.which("ffmpeg") is None:
+    try:
+        import imageio_ffmpeg
+        _ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+        os.environ["PATH"] = os.path.dirname(_ffmpeg_exe) + os.pathsep + os.environ.get("PATH", "")
+    except Exception:
+        pass
+
+if shutil.which("ffmpeg") is None:
     st.error(
         "⚠️ 系統找不到 **FFmpeg**，Whisper 需要它來處理音訊檔案。\n\n"
+        "- **Streamlit Cloud**：請確認 `packages.txt` 包含 `ffmpeg`\n"
         "- **Windows**：`winget install Gyan.FFmpeg`\n"
         "- **macOS**：`brew install ffmpeg`\n"
         "- **Linux**：`sudo apt install ffmpeg`"

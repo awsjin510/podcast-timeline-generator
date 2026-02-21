@@ -3,5 +3,6 @@ openai-whisper>=20231117
 anthropic>=0.40.0
 pydub>=0.25.1
 ffmpeg-python>=0.2.0
+imageio-ffmpeg>=0.4.9
 python-dotenv>=1.0.0
 pandas
