@@ -1,4 +1,4 @@
-"""Transcription module — wraps OpenAI Whisper to produce timestamped segments."""
+"""Transcription module — wraps faster-whisper to produce timestamped segments."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import os
 from dataclasses import asdict, dataclass
 from typing import Optional
 
-import whisper
+from faster_whisper import WhisperModel
 
 from utils.audio import format_timestamp
 
@@ -54,14 +54,18 @@ class TranscriptSegment:
 # Model cache — avoids reloading on every Streamlit rerun
 # ---------------------------------------------------------------------------
 
-_model_cache: dict[str, whisper.Whisper] = {}
+_model_cache: dict[str, WhisperModel] = {}
 
 
-def _load_model(model_name: str) -> whisper.Whisper:
-    """Load a Whisper model, caching it for the lifetime of the process."""
+def _load_model(model_name: str) -> WhisperModel:
+    """Load a faster-whisper model, caching it for the lifetime of the process."""
     if model_name not in _model_cache:
-        logger.info("Loading Whisper model '%s' …", model_name)
-        _model_cache[model_name] = whisper.load_model(model_name)
+        logger.info("Loading faster-whisper model '%s' …", model_name)
+        _model_cache[model_name] = WhisperModel(
+            model_name,
+            device="cpu",
+            compute_type="int8",
+        )
         logger.info("Model '%s' loaded.", model_name)
     return _model_cache[model_name]
 
@@ -90,7 +94,7 @@ def transcribe_audio(
         Optional ISO-639-1 code (e.g. ``"en"``).  When ``None`` Whisper
         auto-detects the language from the first 30 s of audio.
     verbose:
-        If ``True``, Whisper prints progress to stdout while decoding.
+        If ``True``, prints progress to stdout while decoding.
 
     Returns
     -------
@@ -112,35 +116,40 @@ def transcribe_audio(
 
     logger.info("Transcribing '%s' with model '%s' …", file_path, model_name)
 
-    # ---- Run Whisper --------------------------------------------------------
-    # `fp16=False` avoids a warning on CPU-only machines.
-    decode_options: dict = {"fp16": False, "verbose": verbose}
+    # ---- Run faster-whisper -------------------------------------------------
+    transcribe_options: dict = {
+        "vad_filter": True,         # skip silence → much faster
+        "vad_parameters": dict(
+            min_silence_duration_ms=500,
+        ),
+    }
     if language:
-        decode_options["language"] = language
+        transcribe_options["language"] = language
 
     try:
-        result = model.transcribe(file_path, **decode_options)
+        segments_iter, info = model.transcribe(file_path, **transcribe_options)
     except Exception as exc:
         raise RuntimeError(f"Whisper transcription failed: {exc}") from exc
 
-    # ---- Convert raw segments → dataclass ----------------------------------
+    # ---- Convert segments → dataclass ---------------------------------------
     segments: list[TranscriptSegment] = []
-    for seg in result.get("segments", []):
-        text = seg.get("text", "").strip()
+    for seg in segments_iter:
+        text = seg.text.strip()
         if not text:
             continue
         segments.append(
             TranscriptSegment(
-                start_time=round(seg["start"], 2),
-                end_time=round(seg["end"], 2),
+                start_time=round(seg.start, 2),
+                end_time=round(seg.end, 2),
                 text=text,
             )
         )
 
+    detected_lang = info.language if info else "unknown"
     logger.info(
         "Transcription complete — %d segments, detected language: %s",
         len(segments),
-        result.get("language", "unknown"),
+        detected_lang,
     )
     return segments
 
