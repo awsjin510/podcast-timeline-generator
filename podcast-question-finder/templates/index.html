@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Podcast 時間軸產生器</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=IBM+Plex+Mono:wght@400;500;600&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+/* ── Reset ─────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ── Neon color palette ────────────────────────────── */
+:root {
+  --neon-cyan: #00e5ff;
+  --neon-cyan-dim: #00a5b8;
+  --neon-pink: #ff2d95;
+  --neon-pink-dim: #b8205a;
+  --neon-purple: #b44dff;
+  --glow-cyan: 0 0 7px #00e5ff, 0 0 15px #00e5ff, 0 0 30px #00e5ff44;
+  --glow-cyan-strong: 0 0 7px #00e5ff, 0 0 15px #00e5ff, 0 0 30px #00e5ff, 0 0 60px #00e5ff44;
+  --glow-pink: 0 0 7px #ff2d95, 0 0 15px #ff2d95, 0 0 30px #ff2d9544;
+  --glow-purple: 0 0 7px #b44dff, 0 0 15px #b44dff, 0 0 30px #b44dff44;
+  --bg-dark: #0a0a12;
+  --surface: rgba(10, 10, 20, 0.7);
+}
+
+body {
+  font-family: 'Noto Sans TC', sans-serif;
+  background:
+    repeating-linear-gradient(0deg, transparent, transparent 48px, rgba(30,32,45,0.3) 48px, rgba(30,32,45,0.3) 50px),
+    repeating-linear-gradient(90deg, transparent, transparent 98px, rgba(30,32,45,0.2) 98px, rgba(30,32,45,0.2) 100px),
+    linear-gradient(180deg, #0a0a14 0%, #0d0e18 50%, #0a0c14 100%);
+  color: #c8ccd4;
+  min-height: 100vh;
+  padding: 2rem;
+}
+
+/* ── Layout ────────────────────────────────────────── */
+.container { max-width: 960px; margin: 0 auto; }
+
+/* ── Title ─────────────────────────────────────────── */
+.neon-title {
+  font-size: 2.8rem;
+  font-weight: 900;
+  color: var(--neon-cyan);
+  text-shadow: var(--glow-cyan-strong);
+  margin-bottom: 0.15rem;
+  letter-spacing: 0.05em;
+  line-height: 1.3;
+}
+.neon-subtitle {
+  font-weight: 400;
+  color: var(--neon-cyan-dim);
+  font-size: 1rem;
+  text-shadow: 0 0 8px #00e5ff44;
+  margin-bottom: 2.2rem;
+  opacity: 0.85;
+}
+
+/* ── Labels ────────────────────────────────────────── */
+.neon-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--neon-pink);
+  text-shadow: var(--glow-pink);
+  text-transform: uppercase;
+  margin-bottom: 0.6rem;
+  padding-bottom: 0.45rem;
+  border-bottom: 1px solid rgba(255,45,149,0.2);
+}
+
+/* ── Settings panel ────────────────────────────────── */
+.settings-bar {
+  display: flex;
+  gap: 1.2rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+  padding: 1rem 1.2rem;
+  background: var(--surface);
+  border: 1px solid rgba(0,229,255,0.1);
+  border-radius: 10px;
+}
+.settings-bar label {
+  font-size: 0.78rem;
+  color: var(--neon-cyan-dim);
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.settings-bar select,
+.settings-bar input[type="text"] {
+  background: rgba(10,10,20,0.9);
+  border: 1px solid rgba(0,229,255,0.2);
+  color: #d0d4dc;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.82rem;
+}
+.settings-bar select:focus,
+.settings-bar input[type="text"]:focus {
+  outline: none;
+  border-color: var(--neon-cyan);
+  box-shadow: 0 0 8px rgba(0,229,255,0.3);
+}
+
+/* ── Upload area ───────────────────────────────────── */
+.upload-row { display: flex; gap: 1.5rem; align-items: flex-start; margin-bottom: 1.5rem; flex-wrap: wrap; }
+.upload-zone {
+  flex: 1.2;
+  min-width: 280px;
+  border: 2px dashed var(--neon-cyan-dim);
+  border-radius: 12px;
+  padding: 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s;
+  position: relative;
+}
+.upload-zone:hover, .upload-zone.dragover {
+  border-color: var(--neon-cyan);
+  box-shadow: 0 0 25px rgba(0,229,255,0.15);
+}
+.upload-zone input[type="file"] {
+  position: absolute; inset: 0; opacity: 0; cursor: pointer;
+}
+.upload-zone .icon { font-size: 2rem; margin-bottom: 0.5rem; }
+.upload-zone .hint { font-size: 0.85rem; color: #667; }
+.upload-zone .file-info { color: var(--neon-cyan); font-weight: 600; }
+
+.player-box {
+  flex: 1;
+  min-width: 240px;
+}
+.player-box audio {
+  width: 100%;
+  margin-top: 0.5rem;
+  border-radius: 8px;
+}
+
+/* ── Tabs ──────────────────────────────────────────── */
+.tabs { display: flex; border-bottom: 1px solid rgba(0,229,255,0.15); margin-bottom: 1.5rem; }
+.tab-btn {
+  background: none;
+  border: none;
+  font-family: 'Noto Sans TC', sans-serif;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #556;
+  padding: 0.7rem 1.5rem;
+  cursor: pointer;
+  transition: all 0.3s;
+  border-bottom: 2px solid transparent;
+}
+.tab-btn:hover { color: #99a; }
+.tab-btn.active {
+  color: var(--neon-cyan);
+  text-shadow: 0 0 8px #00e5ff66;
+  border-bottom-color: var(--neon-cyan);
+}
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* ── Buttons ───────────────────────────────────────── */
+.btn-primary {
+  background: transparent;
+  color: var(--neon-pink);
+  border: 2px solid var(--neon-pink);
+  box-shadow: var(--glow-pink);
+  font-family: 'Noto Sans TC', sans-serif;
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: 0.08em;
+  border-radius: 8px;
+  padding: 0.75rem 2rem;
+  cursor: pointer;
+  width: 100%;
+  transition: all 0.3s;
+}
+.btn-primary:hover:not(:disabled) {
+  background: rgba(255,45,149,0.1);
+  box-shadow: 0 0 10px #ff2d95, 0 0 25px #ff2d95, 0 0 50px #ff2d9566;
+}
+.btn-primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-download {
+  background: transparent;
+  color: var(--neon-cyan);
+  border: 1px solid var(--neon-cyan);
+  box-shadow: 0 0 5px #00e5ff44;
+  font-family: 'Noto Sans TC', sans-serif;
+  font-weight: 600;
+  border-radius: 6px;
+  padding: 0.55rem 1.2rem;
+  cursor: pointer;
+  transition: all 0.3s;
+  flex: 1;
+  text-decoration: none;
+  text-align: center;
+  font-size: 0.9rem;
+}
+.btn-download:hover {
+  background: rgba(0,229,255,0.08);
+  box-shadow: var(--glow-cyan);
+}
+
+/* ── Progress bar ──────────────────────────────────── */
+.progress-wrap { margin: 1rem 0; display: none; }
+.progress-bar {
+  height: 6px;
+  background: rgba(0,229,255,0.1);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--neon-cyan), var(--neon-purple));
+  box-shadow: 0 0 10px var(--neon-cyan);
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+.progress-text {
+  font-size: 0.82rem;
+  color: var(--neon-cyan-dim);
+  margin-top: 0.4rem;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+/* ── Error ─────────────────────────────────────────── */
+.error-msg {
+  background: rgba(255,45,149,0.1);
+  border: 1px solid rgba(255,45,149,0.3);
+  color: var(--neon-pink);
+  padding: 0.8rem 1rem;
+  border-radius: 8px;
+  margin: 1rem 0;
+  display: none;
+}
+
+/* ── Metric cards ──────────────────────────────────── */
+.cards-row { display: flex; gap: 1.2rem; margin: 1.5rem 0; }
+.neon-card {
+  background: var(--surface);
+  border: 1px solid var(--neon-cyan);
+  box-shadow: var(--glow-cyan), inset 0 0 20px rgba(0,229,255,0.03);
+  border-radius: 12px;
+  padding: 1.3rem 1.4rem;
+  text-align: center;
+  flex: 1;
+  transition: box-shadow 0.3s;
+}
+.neon-card:hover { box-shadow: var(--glow-cyan-strong), inset 0 0 30px rgba(0,229,255,0.06); }
+.neon-card .value {
+  font-family: 'Orbitron', 'IBM Plex Mono', monospace;
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--neon-cyan);
+  text-shadow: var(--glow-cyan);
+}
+.neon-card .label {
+  font-size: 0.75rem;
+  color: #667;
+  margin-top: 0.3rem;
+  letter-spacing: 0.06em;
+}
+
+/* ── Chapter rows ──────────────────────────────────── */
+.ch-row {
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+  padding: 0.8rem 0;
+  border-bottom: 1px solid rgba(0,229,255,0.06);
+  transition: background 0.2s;
+}
+.ch-row:hover { background: rgba(0,229,255,0.03); }
+.ch-row:last-child { border-bottom: none; }
+.ch-num {
+  font-family: 'Orbitron', monospace;
+  font-size: 0.65rem;
+  color: var(--neon-purple);
+  text-shadow: var(--glow-purple);
+  width: 1.6rem;
+  text-align: right;
+  flex-shrink: 0;
+  font-weight: 700;
+}
+.ch-ts {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--neon-cyan);
+  text-shadow: 0 0 6px #00e5ff88;
+  background: rgba(0,229,255,0.06);
+  border: 1px solid rgba(0,229,255,0.15);
+  padding: 0.25rem 0.65rem;
+  border-radius: 5px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.ch-title {
+  font-size: 1rem;
+  color: #d0d4dc;
+  line-height: 1.45;
+}
+.not-found { opacity: 0.3; }
+.not-found-tag {
+  color: var(--neon-pink);
+  font-size: 0.75rem;
+}
+
+/* ── YouTube code box ──────────────────────────────── */
+.yt-code {
+  background: rgba(10,10,20,0.8);
+  border: 1px solid rgba(0,229,255,0.2);
+  box-shadow: 0 0 10px rgba(0,229,255,0.1);
+  color: #d0d4dc;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.85rem;
+  padding: 1rem;
+  border-radius: 8px;
+  white-space: pre-wrap;
+  line-height: 1.6;
+  position: relative;
+  cursor: pointer;
+}
+.yt-code:hover::after {
+  content: 'Click to copy';
+  position: absolute;
+  top: 0.5rem;
+  right: 0.7rem;
+  font-size: 0.7rem;
+  color: var(--neon-cyan-dim);
+}
+
+/* ── Textarea ──────────────────────────────────────── */
+.outline-textarea {
+  width: 100%;
+  min-height: 160px;
+  background: rgba(10,10,20,0.8);
+  border: 1px solid rgba(0,229,255,0.2);
+  color: #d0d4dc;
+  font-family: 'Noto Sans TC', sans-serif;
+  font-size: 0.92rem;
+  padding: 0.8rem;
+  border-radius: 8px;
+  resize: vertical;
+  margin-bottom: 1rem;
+}
+.outline-textarea:focus {
+  outline: none;
+  border-color: var(--neon-cyan);
+  box-shadow: 0 0 10px rgba(0,229,255,0.2);
+}
+.outline-textarea::placeholder { color: #445; }
+
+/* ── Divider & footer ──────────────────────────────── */
+hr { border: none; border-top: 1px solid rgba(0,229,255,0.1); box-shadow: 0 0 6px rgba(0,229,255,0.08); margin: 2rem 0; }
+.neon-footer {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.7rem;
+  color: #334;
+  text-align: center;
+  margin-top: 2rem;
+  letter-spacing: 0.05em;
+}
+
+/* ── Warning ───────────────────────────────────────── */
+.warning-box {
+  background: rgba(255,165,0,0.1);
+  border: 1px solid rgba(255,165,0,0.3);
+  color: #ffa500;
+  padding: 0.8rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+  font-size: 0.88rem;
+}
+
+/* ── Downloads row ─────────────────────────────────── */
+.dl-row { display: flex; gap: 1rem; margin-top: 1rem; }
+
+/* ── Result section ────────────────────────────────── */
+.result-section { display: none; }
+
+/* ── Scrollbar ─────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #0a0a14; }
+::-webkit-scrollbar-thumb { background: var(--neon-cyan-dim); border-radius: 3px; box-shadow: 0 0 4px #00e5ff44; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="neon-title">&#x1F3D9;&#xFE0F; Podcast 時間軸產生器</div>
+  <div class="neon-subtitle">上傳 Podcast 音檔，AI 自動產出 YouTube 章節時間軸</div>
+
+  {% if not has_ffmpeg %}
+  <div class="warning-box">
+    &#x26A0;&#xFE0F; 系統找不到 FFmpeg，Whisper 需要它來處理音訊。請先安裝：<code>brew install ffmpeg</code>
+  </div>
+  {% endif %}
+  {% if not has_api_key %}
+  <div class="warning-box">
+    &#x26A0;&#xFE0F; 未偵測到 ANTHROPIC_API_KEY。請在啟動前設定環境變數：<code>export ANTHROPIC_API_KEY="sk-ant-..."</code>
+  </div>
+  {% endif %}
+
+  <!-- ── Settings ──────────────────────────────────── -->
+  <div class="settings-bar">
+    <label>
+      Whisper 模型
+      <select id="whisperModel">
+        <option value="tiny">tiny</option>
+        <option value="base" selected>base</option>
+        <option value="small">small</option>
+        <option value="medium">medium</option>
+        <option value="large">large</option>
+      </select>
+    </label>
+    <label>
+      語言（留空自動偵測）
+      <input type="text" id="language" placeholder="zh、en、ja..." style="width:120px">
+    </label>
+    <label>
+      Claude 模型
+      <input type="text" id="llmModel" value="claude-sonnet-4-20250514" style="width:240px">
+    </label>
+  </div>
+
+  <!-- ── Upload ────────────────────────────────────── -->
+  <div class="upload-row">
+    <div class="upload-zone" id="uploadZone">
+      <input type="file" id="fileInput" accept=".mp3,.wav,.m4a,.ogg,.flac,.webm">
+      <div class="icon">&#x1F3B5;</div>
+      <div id="uploadHint" class="hint">將 Podcast 音檔拖曳至此，或點擊選擇檔案</div>
+    </div>
+    <div class="player-box" id="playerBox" style="display:none">
+      <div class="neon-label">預覽播放</div>
+      <audio id="audioPlayer" controls></audio>
+    </div>
+  </div>
+
+  <!-- ── Tabs ──────────────────────────────────────── -->
+  <div id="tabSection" style="display:none">
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="auto">&#x26A1; AI 自動產生時間軸</button>
+      <button class="tab-btn" data-tab="outline">&#x1F4DD; 訪綱比對時間軸</button>
+    </div>
+
+    <!-- Tab 1: Auto -->
+    <div class="tab-content active" id="tab-auto">
+      <button class="btn-primary" id="btnGenerate" disabled>&#x26A1;  產生時間軸</button>
+
+      <div class="progress-wrap" id="progressAuto">
+        <div class="progress-bar"><div class="progress-fill" id="progressFillAuto"></div></div>
+        <div class="progress-text" id="progressTextAuto"></div>
+      </div>
+      <div class="error-msg" id="errorAuto"></div>
+
+      <div class="result-section" id="resultAuto">
+        <hr>
+        <div class="cards-row">
+          <div class="neon-card">
+            <div class="value" id="chapterCount">0</div>
+            <div class="label">章節數</div>
+          </div>
+          <div class="neon-card">
+            <div class="value" id="audioDuration">00:00</div>
+            <div class="label">音檔長度</div>
+          </div>
+        </div>
+
+        <div class="neon-label">&#x1F4CB; 章節時間軸</div>
+        <div id="chapterList"></div>
+
+        <br>
+        <div class="neon-label">&#x1F4CE; YouTube 描述欄格式（點擊複製）</div>
+        <div class="yt-code" id="ytCodeAuto" onclick="copyText(this)"></div>
+
+        <div class="dl-row">
+          <a class="btn-download" id="dlAutoTxt" download="youtube_時間軸.txt">&#x1F4E5; 下載 TXT</a>
+          <a class="btn-download" id="dlAutoCsv" download="podcast_章節.csv">&#x1F4E5; 下載 CSV</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 2: Outline -->
+    <div class="tab-content" id="tab-outline">
+      <div class="neon-subtitle" style="margin-bottom:1rem;">
+        輸入訪綱題目（每行一個），AI 會從逐字稿中找出每個題目對應的時間點。
+      </div>
+      <textarea class="outline-textarea" id="outlineInput"
+        placeholder="例如：&#10;請先自我介紹&#10;當初為什麼會進入這個產業？&#10;新手最常犯的錯誤是什麼？&#10;對聽眾的建議"></textarea>
+      <button class="btn-primary" id="btnMatch" disabled>&#x1F50D;  比對訪綱時間點</button>
+
+      <div class="progress-wrap" id="progressOutline">
+        <div class="progress-bar"><div class="progress-fill" id="progressFillOutline"></div></div>
+        <div class="progress-text" id="progressTextOutline"></div>
+      </div>
+      <div class="error-msg" id="errorOutline"></div>
+
+      <div class="result-section" id="resultOutline">
+        <hr>
+        <div class="neon-label">&#x1F4DD; 訪綱比對結果</div>
+        <div id="outlineList"></div>
+
+        <br>
+        <div class="neon-label">&#x1F4CE; YouTube 描述欄格式（點擊複製）</div>
+        <div class="yt-code" id="ytCodeOutline" onclick="copyText(this)"></div>
+
+        <div class="dl-row">
+          <a class="btn-download" id="dlOutlineTxt" download="youtube_訪綱時間軸.txt">&#x1F4E5; 下載 TXT</a>
+          <a class="btn-download" id="dlOutlineCsv" download="podcast_訪綱比對.csv">&#x1F4E5; 下載 CSV</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr>
+  <div class="neon-footer">POWERED BY  FLASK &middot; WHISPER &middot; ANTHROPIC CLAUDE</div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────
+let fileId = null;
+
+// ── Elements ───────────────────────────────────────
+const fileInput     = document.getElementById('fileInput');
+const uploadZone    = document.getElementById('uploadZone');
+const uploadHint    = document.getElementById('uploadHint');
+const playerBox     = document.getElementById('playerBox');
+const audioPlayer   = document.getElementById('audioPlayer');
+const tabSection    = document.getElementById('tabSection');
+const btnGenerate   = document.getElementById('btnGenerate');
+const btnMatch      = document.getElementById('btnMatch');
+
+// ── Tabs ───────────────────────────────────────────
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ── Drag & drop ────────────────────────────────────
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.classList.remove('dragover');
+  if (e.dataTransfer.files.length) {
+    fileInput.files = e.dataTransfer.files;
+    handleFileSelect();
+  }
+});
+fileInput.addEventListener('change', handleFileSelect);
+
+// ── File upload ────────────────────────────────────
+async function handleFileSelect() {
+  const file = fileInput.files[0];
+  if (!file) return;
+
+  // Show player
+  const url = URL.createObjectURL(file);
+  audioPlayer.src = url;
+  playerBox.style.display = 'block';
+  uploadHint.innerHTML = '<span class="file-info">' + file.name + ' (' + (file.size / 1024 / 1024).toFixed(1) + ' MB)</span>';
+
+  // Upload to server
+  const form = new FormData();
+  form.append('file', file);
+
+  try {
+    const resp = await fetch('/api/upload', { method: 'POST', body: form });
+    const data = await resp.json();
+    if (data.error) {
+      alert(data.error);
+      return;
+    }
+    fileId = data.file_id;
+    tabSection.style.display = 'block';
+    btnGenerate.disabled = false;
+    btnMatch.disabled = false;
+  } catch (err) {
+    alert('上傳失敗：' + err.message);
+  }
+}
+
+// ── Get settings ───────────────────────────────────
+function getSettings() {
+  return {
+    whisper_model: document.getElementById('whisperModel').value,
+    language: document.getElementById('language').value,
+    llm_model: document.getElementById('llmModel').value,
+  };
+}
+
+// ── SSE helper ─────────────────────────────────────
+function startSSE(url, { onProgress, onResult, onError }) {
+  const source = new EventSource(url);
+  source.addEventListener('progress', e => {
+    const d = JSON.parse(e.data);
+    onProgress(d.pct, d.msg);
+  });
+  source.addEventListener('result', e => {
+    source.close();
+    const d = JSON.parse(e.data);
+    onResult(d);
+  });
+  source.addEventListener('error', e => {
+    if (e.data) {
+      const d = JSON.parse(e.data);
+      onError(d.msg);
+    } else {
+      onError('連線中斷。');
+    }
+    source.close();
+  });
+  return source;
+}
+
+// ── Generate chapters ──────────────────────────────
+btnGenerate.addEventListener('click', () => {
+  if (!fileId) return;
+  btnGenerate.disabled = true;
+
+  const prog = document.getElementById('progressAuto');
+  const fill = document.getElementById('progressFillAuto');
+  const text = document.getElementById('progressTextAuto');
+  const errEl = document.getElementById('errorAuto');
+  const result = document.getElementById('resultAuto');
+
+  prog.style.display = 'block';
+  errEl.style.display = 'none';
+  result.style.display = 'none';
+  fill.style.width = '0%';
+
+  const s = getSettings();
+  const params = new URLSearchParams(s).toString();
+
+  startSSE('/api/generate/' + fileId + '?' + params, {
+    onProgress(pct, msg) {
+      fill.style.width = pct + '%';
+      text.textContent = msg;
+    },
+    onResult(data) {
+      btnGenerate.disabled = false;
+      result.style.display = 'block';
+
+      document.getElementById('chapterCount').textContent = data.chapter_count;
+      document.getElementById('audioDuration').textContent = data.duration;
+
+      // Chapter list
+      let html = '';
+      data.chapters.forEach((ch, i) => {
+        html += '<div class="ch-row">' +
+          '<span class="ch-num">' + String(i+1).padStart(2,'0') + '</span>' +
+          '<span class="ch-ts">' + ch.timestamp + '</span>' +
+          '<span class="ch-title">' + ch.title + '</span>' +
+          '</div>';
+      });
+      document.getElementById('chapterList').innerHTML = html;
+
+      // YouTube text
+      document.getElementById('ytCodeAuto').textContent = data.youtube_text;
+
+      // Downloads
+      const blob_txt = new Blob([data.youtube_text], {type:'text/plain;charset=utf-8'});
+      document.getElementById('dlAutoTxt').href = URL.createObjectURL(blob_txt);
+
+      // CSV
+      let csv = '\uFEFF時間戳,章節標題\n';
+      data.chapters.forEach(ch => {
+        csv += '"' + ch.timestamp + '","' + ch.title.replace(/"/g,'""') + '"\n';
+      });
+      const blob_csv = new Blob([csv], {type:'text/csv;charset=utf-8'});
+      document.getElementById('dlAutoCsv').href = URL.createObjectURL(blob_csv);
+    },
+    onError(msg) {
+      btnGenerate.disabled = false;
+      errEl.textContent = msg;
+      errEl.style.display = 'block';
+    }
+  });
+});
+
+// ── Match outline ──────────────────────────────────
+btnMatch.addEventListener('click', () => {
+  if (!fileId) return;
+  const outline = document.getElementById('outlineInput').value.trim();
+  if (!outline) { alert('請輸入訪綱內容。'); return; }
+  btnMatch.disabled = true;
+
+  const prog = document.getElementById('progressOutline');
+  const fill = document.getElementById('progressFillOutline');
+  const text = document.getElementById('progressTextOutline');
+  const errEl = document.getElementById('errorOutline');
+  const result = document.getElementById('resultOutline');
+
+  prog.style.display = 'block';
+  errEl.style.display = 'none';
+  result.style.display = 'none';
+  fill.style.width = '0%';
+
+  const s = getSettings();
+  s.outline = outline;
+  const params = new URLSearchParams(s).toString();
+
+  startSSE('/api/match/' + fileId + '?' + params, {
+    onProgress(pct, msg) {
+      fill.style.width = pct + '%';
+      text.textContent = msg;
+    },
+    onResult(data) {
+      btnMatch.disabled = false;
+      result.style.display = 'block';
+
+      let html = '';
+      data.items.forEach((item, i) => {
+        const cls = item.not_found ? ' not-found' : '';
+        const tag = item.not_found ? ' <span class="not-found-tag">(未提及)</span>' : '';
+        html += '<div class="ch-row' + cls + '">' +
+          '<span class="ch-num">' + String(i+1).padStart(2,'0') + '</span>' +
+          '<span class="ch-ts">' + item.timestamp + '</span>' +
+          '<span class="ch-title">' + item.title + tag + '</span>' +
+          '</div>';
+      });
+      document.getElementById('outlineList').innerHTML = html;
+
+      document.getElementById('ytCodeOutline').textContent = data.youtube_text;
+
+      // Downloads
+      const blob_txt = new Blob([data.youtube_text], {type:'text/plain;charset=utf-8'});
+      document.getElementById('dlOutlineTxt').href = URL.createObjectURL(blob_txt);
+
+      let csv = '\uFEFF時間戳,訪綱題目\n';
+      data.items.filter(r => !r.not_found).forEach(r => {
+        csv += '"' + r.timestamp + '","' + r.title.replace(/"/g,'""') + '"\n';
+      });
+      const blob_csv = new Blob([csv], {type:'text/csv;charset=utf-8'});
+      document.getElementById('dlOutlineCsv').href = URL.createObjectURL(blob_csv);
+    },
+    onError(msg) {
+      btnMatch.disabled = false;
+      errEl.textContent = msg;
+      errEl.style.display = 'block';
+    }
+  });
+});
+
+// ── Copy text ──────────────────────────────────────
+function copyText(el) {
+  navigator.clipboard.writeText(el.textContent).then(() => {
+    const orig = el.style.borderColor;
+    el.style.borderColor = 'var(--neon-cyan)';
+    el.style.boxShadow = 'var(--glow-cyan)';
+    setTimeout(() => { el.style.borderColor = orig; el.style.boxShadow = ''; }, 800);
+  });
+}
+</script>
+</body>
+</html>

@@ -5,8 +5,6 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from streamlit.runtime.uploaded_file_manager import UploadedFile
-
 SUPPORTED_EXTENSIONS = {".mp3", ".wav", ".m4a", ".ogg", ".flac", ".webm", ".mp4"}
 MAX_FILE_SIZE_MB = 500
 
@@ -64,8 +62,8 @@ def validate_file_size(size_bytes: int) -> float:
     return round(size_mb, 2)
 
 
-def save_upload_to_disk(uploaded_file: UploadedFile) -> AudioFile:
-    """Persist a Streamlit ``UploadedFile`` to a temp directory on disk.
+def save_upload_to_disk(file_bytes: bytes, filename: str) -> AudioFile:
+    """Persist uploaded file bytes to a temp directory on disk.
 
     Whisper (and most audio libraries) require a real filesystem path.
     This function:
@@ -77,25 +75,22 @@ def save_upload_to_disk(uploaded_file: UploadedFile) -> AudioFile:
 
     Usage::
 
-        audio = save_upload_to_disk(st_file)
+        audio = save_upload_to_disk(raw_bytes, "episode.mp3")
         try:
             segments = transcribe_audio(str(audio.path))
         finally:
             audio.cleanup()
 
         # — or —
-        with save_upload_to_disk(st_file) as audio:
+        with save_upload_to_disk(raw_bytes, "episode.mp3") as audio:
             segments = transcribe_audio(str(audio.path))
     """
-    filename = uploaded_file.name
     ext = validate_extension(filename)
-
-    raw_bytes = uploaded_file.read()
-    size_mb = validate_file_size(len(raw_bytes))
+    size_mb = validate_file_size(len(file_bytes))
 
     tmp_dir = tempfile.TemporaryDirectory(prefix="podcast_qf_")
     tmp_path = Path(tmp_dir.name) / f"upload{ext}"
-    tmp_path.write_bytes(raw_bytes)
+    tmp_path.write_bytes(file_bytes)
 
     return AudioFile(
         path=tmp_path,

@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-# Podcast Question Extractor — 一鍵設定與啟動腳本
+# Podcast 時間軸產生器 — 一鍵設定與啟動腳本（Flask 本地版）
 # 使用方式：在 podcast-question-finder 資料夾內執行
 #   chmod +x setup_and_run.sh
 #   ./setup_and_run.sh
@@ -9,7 +9,7 @@
 set -e
 
 echo "=========================================="
-echo " Podcast Question Extractor 安裝程式"
+echo " Podcast 時間軸產生器 安裝程式"
 echo "=========================================="
 echo ""
 
@@ -61,62 +61,29 @@ echo "   ✅ 套件安裝完成"
 
 # ── 5. 檢查 API Key ─────────────────────────
 echo ""
-if [ -z "$OPENAI_API_KEY" ]; then
+if [ -z "$ANTHROPIC_API_KEY" ]; then
     # 嘗試從 .env 讀取
     if [ -f ".env" ]; then
         source .env 2>/dev/null
     fi
 
-    # 嘗試從 ~/.openclaw/openclaw.json 讀取
-    if [ -z "$OPENAI_API_KEY" ] && [ -f "$HOME/.openclaw/openclaw.json" ]; then
-        echo "🔑 嘗試從 ~/.openclaw/openclaw.json 讀取 API Key..."
-        KEY=$(python3 -c "
-import json, sys
-try:
-    with open('$HOME/.openclaw/openclaw.json') as f:
-        data = json.load(f)
-    # 常見的 key 路徑
-    for k in ['openai_api_key', 'OPENAI_API_KEY', 'api_key', 'apiKey']:
-        if k in data:
-            print(data[k])
-            sys.exit(0)
-    # 搜尋巢狀結構
-    for v in data.values():
-        if isinstance(v, str) and v.startswith('sk-'):
-            print(v)
-            sys.exit(0)
-        if isinstance(v, dict):
-            for vv in v.values():
-                if isinstance(vv, str) and vv.startswith('sk-'):
-                    print(vv)
-                    sys.exit(0)
-except Exception:
-    pass
-" 2>/dev/null)
-
-        if [ -n "$KEY" ]; then
-            export OPENAI_API_KEY="$KEY"
-            echo "   ✅ 已從 openclaw.json 取得 API Key"
-        fi
-    fi
-
-    if [ -z "$OPENAI_API_KEY" ]; then
-        echo "⚠️  未偵測到 OPENAI_API_KEY"
-        echo "   請輸入你的 OpenAI API Key（sk-... 開頭）："
-        read -r OPENAI_API_KEY
-        export OPENAI_API_KEY
+    if [ -z "$ANTHROPIC_API_KEY" ]; then
+        echo "⚠️  未偵測到 ANTHROPIC_API_KEY"
+        echo "   請輸入你的 Anthropic API Key（sk-ant-... 開頭）："
+        read -r ANTHROPIC_API_KEY
+        export ANTHROPIC_API_KEY
     fi
 fi
 
-echo "   ✅ API Key 已設定（${OPENAI_API_KEY:0:8}...）"
+echo "   ✅ API Key 已設定（${ANTHROPIC_API_KEY:0:12}...）"
 
 # ── 6. 啟動 ─────────────────────────────────
 echo ""
 echo "=========================================="
-echo " 🚀 啟動 Podcast Question Extractor"
-echo " 瀏覽器將自動開啟 http://localhost:8501"
+echo " 🚀 啟動 Podcast 時間軸產生器"
+echo " 瀏覽器開啟 http://localhost:5000"
 echo " 按 Ctrl+C 停止"
 echo "=========================================="
 echo ""
 
-streamlit run app.py
+$PYTHON flask_app.py
