@@ -434,7 +434,7 @@ if uploaded_file is not None or st.session_state.audio_bytes:
                 progress = st.progress(0, text="\u8f09\u5165 Whisper \u6a21\u578b\u4e2d\u22ef")
 
                 try:
-                    progress.progress(5, text="\u6a21\u578b\u5df2\u8f09\u5165 \u2014 \u8f49\u9304\u4e2d\uff08\u8f03\u9577\u97f3\u6a94\u53ef\u80fd\u9700\u8981\u5e7e\u5206\u9418\uff09\u22ef")
+                    progress.progress(5, text="\u8f49\u9304\u4e2d\uff08\u4f7f\u7528 faster-whisper\uff0c\u8f03\u9577\u97f3\u6a94\u53ef\u80fd\u9700\u898130\u79d2\u81f3\u5e7e\u5206\u9418\uff09\u22ef")
                     segments = transcribe_audio(
                         str(audio_file.path),
                         model_name=whisper_model,
@@ -506,7 +506,7 @@ if uploaded_file is not None or st.session_state.audio_bytes:
                     progress_o = st.progress(0, text="\u8f09\u5165 Whisper \u6a21\u578b\u4e2d\u22ef")
 
                     try:
-                        progress_o.progress(5, text="\u8f49\u9304\u4e2d\u22ef")
+                        progress_o.progress(5, text="\u8f49\u9304\u4e2d\uff08\u4f7f\u7528 faster-whisper\uff0c\u8f03\u9577\u97f3\u6a94\u53ef\u80fd\u9700\u898130\u79d2\u81f3\u5e7e\u5206\u9418\uff09\u22ef")
                         segments = transcribe_audio(
                             str(audio_file.path),
                             model_name=whisper_model,
